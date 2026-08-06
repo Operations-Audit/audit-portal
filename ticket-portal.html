@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audit Ticket Portal</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: Arial, sans-serif;
+  background: #F0F2F5;
+  padding: 16px 16px 100px;
+  min-height: 100vh;
+}
+.page-wrap { max-width: 700px; margin: 0 auto; }
+
+/* Top bar */
+.topbar {
+  background: #fff; border-radius: 8px; padding: 10px 16px;
+  margin-bottom: 12px; display: flex; align-items: center;
+  justify-content: space-between; border: 1px solid #E5E7EB;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+.live-wrap { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #059669; }
+.live-dot  { width: 8px; height: 8px; background: #22C55E; border-radius: 50%; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.topbar-time { font-size: 11px; color: #9CA3AF; }
+.topbar-user { font-size: 11px; color: #6B7280; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Login overlay */
+.login-overlay {
+  position: fixed; inset: 0; background: rgba(15,23,42,.55);
+  display: flex; align-items: center; justify-content: center; z-index: 200;
+}
+.login-overlay.hidden { display: none; }
+.login-card {
+  background: #fff; border-radius: 14px; padding: 44px 40px;
+  max-width: 380px; width: 92%; text-align: center;
+  box-shadow: 0 12px 40px rgba(0,0,0,.2);
+}
+.login-logo { font-size: 36px; margin-bottom: 12px; }
+.login-card h2 { font-size: 20px; color: #1E3A5F; margin-bottom: 8px; }
+.login-card p  { font-size: 13px; color: #6B7280; margin-bottom: 28px; line-height: 1.6; }
+.btn-ms-login {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: #1E3A5F; color: #fff; border: none; border-radius: 8px;
+  padding: 13px 24px; font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: background .15s; width: 100%; justify-content: center;
+}
+.btn-ms-login:hover:not(:disabled) { background: #152d4a; }
+.btn-ms-login:disabled { opacity: .55; cursor: not-allowed; }
+.login-error { font-size: 12px; color: #DC2626; margin-top: 14px; line-height: 1.5; }
+.login-error.hidden { display: none; }
+
+/* States */
+.loading-box, .error-box, .empty-box {
+  text-align: center; padding: 60px 24px; background: #fff;
+  border-radius: 8px; border: 1px solid #E5E7EB;
+}
+.loading-spinner {
+  width: 36px; height: 36px; border: 3px solid #E5E7EB;
+  border-top-color: #1E3A5F; border-radius: 50%;
+  animation: spin .8s linear infinite; margin: 0 auto 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 14px; color: #6B7280; }
+.empty-icon   { font-size: 36px; margin-bottom: 8px; }
+.empty-msg    { font-size: 14px; color: #059669; font-weight: 600; }
+.empty-sub    { font-size: 12px; color: #6B7280; margin-top: 4px; }
+.error-icon   { font-size: 36px; margin-bottom: 8px; }
+.error-msg    { font-size: 14px; color: #DC2626; }
+
+/* Email header */
+.email-header {
+  background: #1E3A5F; color: #fff;
+  padding: 20px 24px; border-radius: 8px 8px 0 0;
+}
+.email-header h2 { margin: 0 0 6px; font-size: 17px; }
+.email-header p  { margin: 0; font-size: 12px; opacity: .8; }
+
+/* Zone score */
+.zone-score { background: #FAFAFA; padding: 14px 24px; border: 1px solid #e8e8e8; border-top: none; }
+.zs-row { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.zs-big  { font-size: 28px; font-weight: 700; line-height: 1; }
+.zs-lbl  { font-size: 11px; color: #6B7280; margin-bottom: 2px; }
+.zs-date { font-size: 10px; color: #9CA3AF; margin-top: 2px; }
+.zs-bar-wrap { flex: 1; height: 10px; background: #E5E7EB; border-radius: 5px; overflow: hidden; }
+.zs-bar      { height: 10px; border-radius: 5px; }
+.zs-badge    { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.dim-row  { display: flex; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; background: #fff; }
+.dim-cell { flex: 1; text-align: center; padding: 8px 4px; border-right: 1px solid #F3F4F6; }
+.dim-cell:last-child { border-right: none; }
+.dim-name { font-size: 10px; color: #6B7280; margin-bottom: 4px; }
+.dim-bg   { background: #E5E7EB; border-radius: 4px; height: 6px; margin-bottom: 4px; overflow: hidden; }
+.dim-fill { height: 6px; border-radius: 4px; }
+.dim-val  { font-size: 12px; font-weight: 700; }
+
+/* Priority badge bar */
+.badge-bar { background: #f9f9f9; padding: 12px 24px; border: 1px solid #e8e8e8; border-top: none; }
+.pri-badge { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 12px; margin-right: 6px; margin-bottom: 4px; }
+
+/* Branch section */
+.branch-section { border: 1px solid #e8e8e8; border-top: none; }
+.branch-header  { padding: 10px 16px 10px 24px; background: #F8FAFC; border-bottom: 1px solid #E5E7EB; }
+.branch-name-big { font-size: 14px; font-weight: 700; color: #1E3A5F; }
+.branch-sub      { font-size: 11px; color: #6B7280; margin-top: 2px; }
+
+/* Select-all bar */
+.select-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px 8px 24px;
+  background: #EFF6FF; border-bottom: 1px solid #BFDBFE;
+  font-size: 12px;
+}
+.select-bar label { display: flex; align-items: center; gap: 6px; cursor: pointer; color: #1E40AF; font-weight: 600; }
+.select-bar input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; accent-color: #2563EB; }
+.select-hint { font-size: 11px; color: #6B7280; margin-left: auto; }
+
+/* Ticket table */
+.ticket-tbl { width: 100%; border-collapse: collapse; background: #fff; }
+.ticket-tbl thead tr { background: #F9FAFB; }
+.ticket-tbl th {
+  padding: 6px 8px; text-align: left;
+  font-size: 11px; color: #9CA3AF; font-weight: 500;
+}
+.ticket-tbl th.th-chk { padding-left: 24px; width: 36px; }
+.ticket-tbl th.th-id  { width: 120px; }
+.ticket-tbl th.th-due { width: 60px; }
+.ticket-tbl th.th-stat { width: 110px; padding-right: 16px; }
+
+/* Category header */
+.cat-hdr td { padding: 6px 16px 6px 24px; border-top: 2px solid; border-bottom: 1px solid; }
+.cat-lbl  { font-size: 11px; font-weight: 700; }
+.cat-cnt  { font-size: 10px; color: #6B7280; margin-left: 6px; }
+
+/* Ticket row */
+.tkt-row { cursor: pointer; transition: background .1s; }
+.tkt-row td { padding: 9px 8px; border-bottom: 1px solid #F3F4F6; vertical-align: middle; }
+.tkt-row td.td-chk  { padding-left: 24px; }
+.tkt-row td.td-stat { padding-right: 16px; }
+.tkt-row:hover:not(.done) { background: #F9FAFB; }
+.tkt-row.selected { background: #EFF6FF; }
+.tkt-row.selected:hover { background: #DBEAFE; }
+.tkt-row.done td { opacity: .4; }
+
+.tkt-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #2563EB; }
+.tkt-id   { font-size: 11px; font-weight: 700; color: #111; white-space: nowrap; }
+.tkt-name { font-size: 12px; color: #374151; }
+.tkt-due  { font-size: 11px; color: #6B7280; white-space: nowrap; }
+.overdue  { color: #DC2626; font-weight: 700; }
+.stat-badge { display: inline-block; padding: 3px 9px; border-radius: 10px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+
+/* Email footer */
+.email-footer {
+  background: #1E3A5F; color: #fff; padding: 12px 24px;
+  border-radius: 0 0 8px 8px; font-size: 11px; opacity: .85;
+  display: flex; justify-content: space-between; align-items: center;
+}
+
+/* Sticky confirm bar */
+.confirm-bar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: #fff; border-top: 2px solid #E5E7EB;
+  padding: 12px 20px;
+  box-shadow: 0 -4px 16px rgba(0,0,0,.12); z-index: 100;
+  transform: translateY(100%); transition: transform .25s ease;
+}
+.confirm-bar.visible { transform: translateY(0); }
+.confirm-inner {
+  max-width: 700px; margin: 0 auto;
+  display: flex; align-items: center; gap: 10px;
+}
+.confirm-count { font-size: 13px; font-weight: 700; color: #1E3A5F; min-width: 100px; }
+.bar-divider   { width: 1px; height: 30px; background: #E5E7EB; }
+
+.cbar-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 9px 18px; border-radius: 6px; font-size: 12px; font-weight: 700;
+  cursor: pointer; border: none; white-space: nowrap; transition: background .15s;
+}
+.cbar-btn:disabled { opacity: .35; cursor: not-allowed; }
+.cb-ack    { background: #EFF6FF; color: #1E40AF; }
+.cb-ack:hover:not(:disabled)    { background: #DBEAFE; }
+.cb-fix    { background: #D1FAE5; color: #065F46; }
+.cb-fix:hover:not(:disabled)    { background: #A7F3D0; }
+.cb-repair { background: #EDE9FE; color: #5B21B6; }
+.cb-repair:hover:not(:disabled) { background: #DDD6FE; }
+
+.btn-clear {
+  margin-left: auto;
+  padding: 9px 14px; background: #F3F4F6; color: #374151;
+  border: none; border-radius: 6px; font-size: 12px; font-weight: 600;
+  cursor: pointer;
+}
+.btn-clear:hover { background: #E5E7EB; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
+  background: #1E3A5F; color: #fff; padding: 10px 20px;
+  border-radius: 24px; font-size: 13px; font-weight: 600;
+  opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- ─── Login overlay (ไม่ต้องใช้ library ใด) ─── -->
+<div class="login-overlay hidden" id="login-overlay">
+  <div class="login-card">
+    <div class="login-logo">🧺</div>
+    <h2>Audit Ticket Portal</h2>
+    <p>กรุณาเข้าสู่ระบบด้วยบัญชี Microsoft<br>ของ Laundry You เพื่อดู ticket ของสาขาคุณ</p>
+    <button class="btn-ms-login" id="btn-login" onclick="startLogin()">
+      <svg width="18" height="18" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+        <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+        <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+        <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+      </svg>
+      เข้าสู่ระบบด้วย Microsoft
+    </button>
+    <div class="login-error hidden" id="login-error"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="page-wrap">
+  <div class="topbar">
+    <div class="live-wrap"><div class="live-dot"></div>ข้อมูล live — ดึงจากระบบ</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="topbar-user" id="topbar-user"></span>
+      <span class="topbar-time" id="topbar-time"></span>
+    </div>
+  </div>
+  <div id="content">
+    <div class="loading-box">
+      <div class="loading-spinner"></div>
+      <div class="loading-text" id="loading-text">กำลังตรวจสอบ...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Sticky confirm bar -->
+<div class="confirm-bar" id="confirm-bar">
+  <div class="confirm-inner">
+    <span class="confirm-count" id="confirm-count">เลือก 0 รายการ</span>
+    <div class="bar-divider"></div>
+    <button class="cbar-btn cb-ack"    id="btn-ack"    disabled onclick="submitAll('ack')">✓ รับทราบ</button>
+    <button class="cbar-btn cb-fix"    id="btn-fix"    disabled onclick="submitAll('fix')">✓ แก้ไขแล้ว</button>
+    <button class="cbar-btn cb-repair" id="btn-repair" disabled onclick="submitAll('repair')">🔧 แจ้งซ่อม</button>
+    <button class="btn-clear" onclick="clearAll()">ยกเลิก</button>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════════════════════════════
+const CLIENT_ID    = "9afa42b8-10a3-4a69-9b6b-7a46edbcc92f";
+const TENANT_ID    = "861ec09f-fa05-438d-8558-700da35fae30";
+const REDIRECT_URI = "https://luwxp.sharepoint.com/sites/lu.retail/Shared%20Documents/Audit%20System/ticket-portal.html";
+const SCOPES       = "openid profile User.Read Files.ReadWrite.All";
+const AUTH_EP      = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize`;
+const TOKEN_EP     = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`;
+
+const DRIVE_ID   = "b!xacS2h95tES2saXTRKyVQFTAZFFhDwhKhu4iWCZzYyZT29E5TuKeRYxqqvNkBv9Z";
+const FILE_ID    = "01RTVQWIXARWSLSST55FFL7M46RICJ3GA7";
+const EXCEL_BASE = `https://graph.microsoft.com/v1.0/drives/${DRIVE_ID}/items/${FILE_ID}/workbook`;
+
+// ════════════════════════════════════════════════════════════════
+// PKCE — OAuth2 auth code flow (ไม่ต้องพึ่ง library ใด)
+// ════════════════════════════════════════════════════════════════
+function b64url(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function generatePKCE() {
+  const verifier  = b64url(crypto.getRandomValues(new Uint8Array(32)));
+  const hashBuf   = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  const challenge = b64url(hashBuf);
+  return { verifier, challenge };
+}
+
+async function startLogin() {
+  const btn = document.getElementById('btn-login');
+  btn.disabled = true;
+  btn.textContent = 'กำลังเชื่อมต่อ...';
+
+  try {
+    const { verifier, challenge } = await generatePKCE();
+    sessionStorage.setItem('pkce_v', verifier);
+    sessionStorage.setItem('pkce_ts', Date.now().toString());
+
+    const params = new URLSearchParams({
+      client_id:             CLIENT_ID,
+      response_type:         'code',
+      redirect_uri:          REDIRECT_URI,
+      scope:                 SCOPES,
+      response_mode:         'query',
+      code_challenge:        challenge,
+      code_challenge_method: 'S256',
+      state:                 'audit_portal_' + Math.random().toString(36).slice(2),
+    });
+    window.location.href = `${AUTH_EP}?${params}`;
+  } catch (e) {
+    showLoginError('เกิดข้อผิดพลาด: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'เข้าสู่ระบบด้วย Microsoft';
+  }
+}
+
+async function exchangeCode(code) {
+  const verifier = sessionStorage.getItem('pkce_v');
+  if (!verifier) throw new Error('Session หมดอายุ กรุณา login ใหม่');
+
+  const resp = await fetch(TOKEN_EP, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id:     CLIENT_ID,
+      grant_type:    'authorization_code',
+      code,
+      redirect_uri:  REDIRECT_URI,
+      code_verifier: verifier,
+      scope:         SCOPES,
+    }),
+  });
+
+  const data = await resp.json();
+  if (data.error) throw new Error(data.error_description || data.error);
+  return data;
+}
+
+function storeTokens(at, email) {
+  sessionStorage.setItem('auth_at',    at);
+  sessionStorage.setItem('auth_email', email);
+  sessionStorage.setItem('auth_ts',    Date.now().toString());
+}
+
+function getStoredToken()  { return sessionStorage.getItem('auth_at'); }
+function getStoredEmail()  { return sessionStorage.getItem('auth_email'); }
+function clearSession()    { sessionStorage.clear(); }
+
+// ════════════════════════════════════════════════════════════════
+// GRAPH API
+// ════════════════════════════════════════════════════════════════
+async function graphGet(url) {
+  const token = getStoredToken();
+  const results = [];
+  let next = url;
+  while (next) {
+    const r = await fetch(next, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+    });
+    if (r.status === 401) { clearSession(); window.location.reload(); return []; }
+    if (!r.ok) { const t = await r.text(); throw new Error(`Graph ${r.status}: ${t}`); }
+    const j = await r.json();
+    if (Array.isArray(j.value)) results.push(...j.value);
+    else return j;
+    next = j['@odata.nextLink'] || null;
+  }
+  return results;
+}
+
+async function graphPatch(url, body) {
+  const token = getStoredToken();
+  const r = await fetch(url, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (r.status === 401) { clearSession(); window.location.reload(); return null; }
+  if (!r.ok) { const t = await r.text(); throw new Error(`Graph PATCH ${r.status}: ${t}`); }
+  return await r.json();
+}
+
+function colMap(cols) {
+  const m = {};
+  (cols||[]).forEach(c => { m[c.name] = c.index; });
+  return new Proxy(m, { get: (t,k) => k in t ? t[k] : -1 });
+}
+function sv(v)       { return v == null ? '' : String(v).trim(); }
+function nv(arr,idx) { if(idx<0||!arr) return null; const n=Number(arr[idx]); return isNaN(n)?null:Math.round(n); }
+function todayStr()  { return new Date().toISOString().substring(0,10); }
+
+// ════════════════════════════════════════════════════════════════
+// ROW META — เก็บ index และ values ไว้สำหรับ PATCH
+// ════════════════════════════════════════════════════════════════
+const rowMeta = {}; // ticketId → { rowIndex, rowValues, statusColIdx }
+
+// ════════════════════════════════════════════════════════════════
+// LOAD DATA
+// ════════════════════════════════════════════════════════════════
+async function loadData(userEmail) {
+  setLoading(`กำลังโหลดข้อมูล...`);
+  document.getElementById('topbar-user').textContent = userEmail;
+
+  // 1. Column defs
+  const [dimCols, tktCols, scrCols] = await Promise.all([
+    graphGet(`${EXCEL_BASE}/tables/tbl_Dim_Branch/columns?$select=index,name`),
+    graphGet(`${EXCEL_BASE}/tables/tbl_Issue_Ticket/columns?$select=index,name`),
+    graphGet(`${EXCEL_BASE}/tables/tbl_Audit_Score/columns?$select=index,name`).catch(()=>[]),
+  ]);
+  const di = colMap(dimCols), ti = colMap(tktCols), si = colMap(scrCols);
+
+  // 2. Row data
+  const [dimRows, tktRows, scrRows] = await Promise.all([
+    graphGet(`${EXCEL_BASE}/tables/tbl_Dim_Branch/rows`),
+    graphGet(`${EXCEL_BASE}/tables/tbl_Issue_Ticket/rows`),
+    graphGet(`${EXCEL_BASE}/tables/tbl_Audit_Score/rows`).catch(()=>[]),
+  ]);
+
+  // 3. Find branch
+  const email = userEmail.toLowerCase();
+  let branchCode='', branchName='';
+  for (const row of dimRows) {
+    const v  = row.values[0];
+    const lc = sv(v[di['lc_email']]).toLowerCase();
+    const zm = di['zm_email']>=0 ? sv(v[di['zm_email']]).toLowerCase() : '';
+    if (lc===email || zm===email) {
+      branchCode = sv(v[di['branch_id']]);
+      branchName = sv(v[di['branch_name']]) || branchCode;
+      break;
+    }
+  }
+  if (!branchCode) {
+    setError(`ไม่พบสาขาที่เชื่อมกับ email: ${userEmail}<br><small style="color:#6B7280">กรุณาติดต่อผู้ดูแลระบบ</small>`);
+    return;
+  }
+
+  // 4. Filter tickets
+  const SHOW = new Set(['Open','Acknowledged','แจ้งซ่อมแล้ว']);
+  const statusColIdx = ti['status'];
+  const tickets = [];
+  for (const row of tktRows) {
+    const v    = row.values[0];
+    const rawB = sv(v[ti['branch_id']]);
+    const code = rawB.includes(' | ') ? rawB.split(' | ')[0].trim() : rawB;
+    if (code !== branchCode) continue;
+    const status = sv(v[statusColIdx]);
+    if (!SHOW.has(status)) continue;
+    const ticketId = sv(v[ti['ticket_id']]);
+    rowMeta[ticketId] = { rowIndex: row.index, rowValues: [...v], statusColIdx };
+    tickets.push({
+      ticket_id:   ticketId,
+      'หัวข้อหลัก': sv(v[ti['หัวข้อหลัก']]),
+      'หมวดหมู่':   sv(v[ti['หมวดหมู่']]),
+      'รายการ':     sv(v[ti['รายการ']]),
+      priority:    sv(v[ti['priority']]) || 'Normal',
+      due_date:    sv(v[ti['due_date']]).substring(0,10),
+      status,
+      days_open:   ti['days_open']>=0 ? (Number(v[ti['days_open']])||0) : 0,
+    });
+  }
+  const pOrd = {Critical:0,High:1,Normal:2,Low:3};
+  tickets.sort((a,b)=>{
+    const pd=(pOrd[a.priority]??9)-(pOrd[b.priority]??9);
+    return pd!==0 ? pd : a.due_date.localeCompare(b.due_date);
+  });
+
+  // 5. Latest score
+  let score=null, latestDate='';
+  for (const row of scrRows) {
+    const v    = row.values[0];
+    const rawB = si['branch_id']>=0 ? sv(v[si['branch_id']]) : '';
+    const code = rawB.includes(' | ') ? rawB.split(' | ')[0].trim() : rawB;
+    if (code!==branchCode) continue;
+    const d = si['audit_date']>=0 ? sv(v[si['audit_date']]).substring(0,10) : '';
+    if (d>latestDate) {
+      latestDate=d;
+      score={
+        score_pct:    Math.round(Number(v[si['score_pct']]??0)),
+        people_pct:   nv(v,si['people_pct']),
+        clean_pct:    nv(v,si['clean_pct']),
+        store_pct:    nv(v,si['store_pct']),
+        machine_pct:  nv(v,si['machine_pct']),
+        external_pct: nv(v,si['external_pct']),
+        audit_date:   latestDate,
+      };
+    }
+  }
+
+  renderAll({ branch_id:branchCode, branch_name:branchName, tickets, score });
+}
+
+// ════════════════════════════════════════════════════════════════
+// SUBMIT — PATCH via Graph API
+// ════════════════════════════════════════════════════════════════
+const actNewStatus = { ack:'Acknowledged', fix:'Branch Fixed', repair:'แจ้งซ่อมแล้ว' };
+
+async function submitAll(action) {
+  if (selected.size===0) return;
+  const ids=[...selected];
+  ['btn-ack','btn-fix','btn-repair'].forEach(id=>{ document.getElementById(id).disabled=true; });
+  let ok=0, fail=0;
+  const newStat = actNewStatus[action];
+
+  for (const ticketId of ids) {
+    try {
+      const meta = rowMeta[ticketId];
+      if (!meta) throw new Error('ไม่พบข้อมูลแถว');
+      const updatedValues = [...meta.rowValues];
+      updatedValues[meta.statusColIdx] = newStat;
+      await graphPatch(
+        `${EXCEL_BASE}/tables/tbl_Issue_Ticket/rows/itemAt(index=${meta.rowIndex})`,
+        { values: [updatedValues] }
+      );
+      meta.rowValues[meta.statusColIdx] = newStat;
+      const statCell = document.getElementById(`stat-${ticketId}`);
+      if (statCell) statCell.innerHTML = statBadgeHtml(newStat);
+      const cb = document.querySelector(`.tkt-checkbox[data-id="${ticketId}"]`);
+      if (cb) { cb.checked=false; cb.disabled=true; }
+      const rowEl = document.getElementById(`row-${ticketId}`);
+      if (rowEl) { rowEl.classList.remove('selected'); if(action==='fix') rowEl.classList.add('done'); }
+      selected.delete(ticketId);
+      ok++;
+    } catch(e) { fail++; console.error(ticketId, e); }
+  }
+  updateBar();
+  if (fail===0) showToast(`✅ บันทึกสำเร็จ ${ok} รายการ`);
+  else          showToast(`⚠️ สำเร็จ ${ok} / ล้มเหลว ${fail} รายการ`, 3500);
+}
+
+// ════════════════════════════════════════════════════════════════
+// UI HELPERS
+// ════════════════════════════════════════════════════════════════
+const pEmoji  = {Critical:'🔴',High:'🟠',Normal:'🟡',Low:'⚪'};
+const pBadgeBg = {Critical:'#FEE2E2',High:'#FEF3C7',Normal:'#D1FAE5',Low:'#F3F4F6'};
+const pBadgeTx = {Critical:'#991B1B',High:'#92400E',Normal:'#065F46',Low:'#374151'};
+const sBadgeBg = {'Open':'#FEE2E2','Acknowledged':'#DBEAFE','Branch Fixed':'#D1FAE5','แจ้งซ่อมแล้ว':'#EDE9FE'};
+const sBadgeTx = {'Open':'#991B1B','Acknowledged':'#1E40AF','Branch Fixed':'#065F46','แจ้งซ่อมแล้ว':'#5B21B6'};
+const sLabel   = {'Open':'รอดำเนินการ','Acknowledged':'รับทราบแล้ว','Branch Fixed':'✅ แก้ไขแล้ว','แจ้งซ่อมแล้ว':'🔧 แจ้งซ่อมแล้ว'};
+const catMeta  = {
+  People:  {icon:'👥',bg:'#EFF6FF',border:'#BFDBFE',text:'#1E40AF'},
+  Clean:   {icon:'🧹',bg:'#F0FDF4',border:'#86EFAC',text:'#15803D'},
+  Store:   {icon:'🏪',bg:'#F5F3FF',border:'#C4B5FD',text:'#6D28D9'},
+  Machine: {icon:'⚙️',bg:'#FFF7ED',border:'#FED7AA',text:'#C2410C'},
+  External:{icon:'🌐',bg:'#F8FAFC',border:'#CBD5E1',text:'#475569'},
+  ทั่วไป:  {icon:'📂',bg:'#EEF2FF',border:'#C7D2FE',text:'#3730A3'},
+};
+const catOrder = ['People','Clean','Store','Machine','External'];
+
+function scoreColor(p){ return p>=90?'#059669':p>=85?'#D97706':'#DC2626'; }
+function scoreBg(p)   { return p>=90?'#D1FAE5':p>=85?'#FEF3C7':'#FEE2E2'; }
+function scoreTx(p)   { return p>=90?'#065F46':p>=85?'#92400E':'#991B1B'; }
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const p=iso.split('-');
+  return p.length===3 ? `${parseInt(p[2])}/${parseInt(p[1])}` : iso;
+}
+function isOverdue(d) { return d && d<todayStr(); }
+function statBadgeHtml(s) {
+  return `<span class="stat-badge" style="background:${sBadgeBg[s]||'#F3F4F6'};color:${sBadgeTx[s]||'#374151'}">${sLabel[s]||s}</span>`;
+}
+function showToast(msg,ms=2500) {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),ms);
+}
+function setLoading(txt) {
+  document.getElementById('content').innerHTML = `
+    <div class="loading-box">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">${txt}</div>
+    </div>`;
+}
+function setError(html) {
+  document.getElementById('content').innerHTML = `
+    <div class="error-box"><div class="error-icon">❌</div>
+    <div class="error-msg">${html}</div></div>`;
+}
+function showLoginError(msg) {
+  const el=document.getElementById('login-error');
+  el.textContent=msg; el.classList.remove('hidden');
+}
+
+// ════════════════════════════════════════════════════════════════
+// SELECTION
+// ════════════════════════════════════════════════════════════════
+const selected = new Set();
+function onCheckbox(id,checked) {
+  const row=document.getElementById(`row-${id}`);
+  if(checked){selected.add(id);if(row)row.classList.add('selected');}
+  else{selected.delete(id);if(row)row.classList.remove('selected');}
+  updateBar();
+}
+function toggleRow(id) {
+  const cb=document.querySelector(`.tkt-checkbox[data-id="${id}"]`);
+  if(!cb||cb.disabled)return;
+  cb.checked=!cb.checked;
+  onCheckbox(id,cb.checked);
+}
+function onSelectAll(checked) {
+  document.querySelectorAll('.tkt-checkbox').forEach(cb=>{
+    if(!cb.disabled){cb.checked=checked;onCheckbox(cb.dataset.id,checked);}
+  });
+}
+function clearAll() {
+  selected.forEach(id=>{
+    const cb=document.querySelector(`.tkt-checkbox[data-id="${id}"]`);
+    if(cb)cb.checked=false;
+    const row=document.getElementById(`row-${id}`);
+    if(row)row.classList.remove('selected');
+  });
+  selected.clear();
+  const allCb=document.getElementById('chk-all');
+  if(allCb){allCb.checked=false;allCb.indeterminate=false;}
+  updateBar();
+}
+function updateBar() {
+  const n=selected.size;
+  document.getElementById('confirm-count').textContent=`เลือก ${n} รายการ`;
+  const dis=n===0;
+  ['btn-ack','btn-fix','btn-repair'].forEach(id=>{ document.getElementById(id).disabled=dis; });
+  const bar=document.getElementById('confirm-bar');
+  if(n>0)bar.classList.add('visible'); else bar.classList.remove('visible');
+  const allCb=document.getElementById('chk-all');
+  if(allCb){
+    const total=document.querySelectorAll('.tkt-checkbox:not(:disabled)').length;
+    allCb.checked=n>0&&n===total;
+    allCb.indeterminate=n>0&&n<total;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// RENDER
+// ════════════════════════════════════════════════════════════════
+function renderAll(data) {
+  const tickets=data.tickets||[], score=data.score;
+  const thMonths=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const now=new Date();
+  document.getElementById('topbar-time').textContent=
+    `อัปเดต ${now.toLocaleDateString('th-TH')} ${now.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}`;
+  const displayDate=`${now.getDate()} ${thMonths[now.getMonth()+1]} ${now.getFullYear()+543}`;
+
+  if(tickets.length===0){
+    document.getElementById('content').innerHTML=`
+      <div class="email-header"><h2>📋 ผลการตรวจสาขา</h2><p>${data.branch_name||data.branch_id}</p></div>
+      <div class="empty-box" style="border-radius:0 0 8px 8px">
+        <div class="empty-icon">✅</div>
+        <div class="empty-msg">ไม่มี Ticket ที่ต้องดำเนินการ</div>
+        <div class="empty-sub">ทุกรายการได้รับการจัดการแล้ว</div>
+      </div>`;
+    return;
+  }
+
+  const pCount={Critical:0,High:0,Normal:0,Low:0};
+  tickets.forEach(t=>{if(pCount[t.priority]!==undefined)pCount[t.priority]++;});
+  const total=tickets.length, critical=pCount.Critical;
+  let html='';
+
+  html+=`<div class="email-header">
+    <h2>📋 ผลการตรวจสาขา — ${displayDate}</h2>
+    <p>${data.branch_name||data.branch_id} &nbsp;|&nbsp; ${total} tickets${critical>0?` &nbsp;|&nbsp; 🔴 Critical: ${critical}`:''}</p>
+  </div>`;
+
+  if(score){
+    const sc=score.score_pct,col=scoreColor(sc),bg=scoreBg(sc),tx=scoreTx(sc);
+    const lbl=sc>=90?'ผ่านเกณฑ์ดี':sc>=85?'ผ่านเกณฑ์':'ต่ำกว่าเกณฑ์';
+    const dimC=(nm,ic,pct)=>pct===null
+      ?`<div class="dim-cell"><div class="dim-name">${ic} ${nm}</div><div class="dim-bg"></div><div class="dim-val" style="color:#9CA3AF">—</div></div>`
+      :`<div class="dim-cell"><div class="dim-name">${ic} ${nm}</div><div class="dim-bg"><div class="dim-fill" style="width:${pct}%;background:${scoreColor(pct)}"></div></div><div class="dim-val" style="color:${scoreColor(pct)}">${pct}%</div></div>`;
+    const ad=(score.audit_date||'').split('-');
+    const adStr=ad.length===3?`${parseInt(ad[2])}/${parseInt(ad[1])}/${ad[0]}`:score.audit_date;
+    html+=`<div class="zone-score">
+      <div class="zs-row">
+        <div><div class="zs-lbl">🏆 คะแนนสาขา</div><div class="zs-big" style="color:${col}">${sc}%</div><div class="zs-date">ตรวจล่าสุด ${adStr}</div></div>
+        <div class="zs-bar-wrap"><div class="zs-bar" style="width:${sc}%;background:${col}"></div></div>
+        <div class="zs-badge" style="background:${bg};color:${tx}">${lbl}</div>
+      </div>
+      <div class="dim-row">
+        ${dimC('People','👥',score.people_pct)}${dimC('Clean','🧹',score.clean_pct)}
+        ${dimC('Store','🏪',score.store_pct)}${dimC('Machine','⚙️',score.machine_pct)}
+        ${dimC('External','🌐',score.external_pct)}
+      </div></div>`;
+  }
+
+  const bdgs=['Critical','High','Normal','Low'].filter(p=>pCount[p]>0)
+    .map(p=>`<span class="pri-badge" style="background:${pBadgeBg[p]};color:${pBadgeTx[p]}">${pEmoji[p]} ${p}: ${pCount[p]}</span>`).join('');
+  html+=`<div class="badge-bar">${bdgs}</div>`;
+
+  html+=`<div class="branch-section">
+    <div class="branch-header">
+      <div class="branch-name-big">📍 ${data.branch_name||data.branch_id}</div>
+      <div class="branch-sub">${data.branch_id} &nbsp;·&nbsp; ${total} tickets</div>
+    </div>
+    <div class="select-bar">
+      <label><input type="checkbox" id="chk-all" onchange="onSelectAll(this.checked)"> เลือกทั้งหมด</label>
+      <span class="select-hint">ติ๊กรายการที่ต้องการ แล้วกดปุ่มด้านล่าง</span>
+    </div>
+    <table class="ticket-tbl">
+      <thead><tr>
+        <th class="th-chk"></th><th class="th-id">Ticket</th>
+        <th>รายการ</th><th class="th-due">Deadline</th><th class="th-stat">สถานะ</th>
+      </tr></thead><tbody>`;
+
+  const groups={};
+  tickets.forEach(t=>{
+    const cat=t['หัวข้อหลัก']||'ทั่วไป';
+    if(!groups[cat])groups[cat]=[];
+    groups[cat].push(t);
+  });
+  const orderedCats=[...catOrder.filter(c=>groups[c]),...Object.keys(groups).filter(c=>!catOrder.includes(c))];
+
+  orderedCats.forEach(cat=>{
+    const meta=catMeta[cat]||catMeta['ทั่วไป'];
+    const list=groups[cat];
+    html+=`<tr class="cat-hdr" style="background:${meta.bg};border-top-color:${meta.border};border-bottom-color:${meta.border}">
+      <td colspan="5"><span class="cat-lbl" style="color:${meta.text}">${meta.icon} ${cat}</span><span class="cat-cnt">${list.length} รายการ</span></td>
+    </tr>`;
+    list.forEach(t=>{
+      const isActionable=t.status==='Open'||t.status==='Acknowledged';
+      const od=isOverdue(t.due_date)&&t.status==='Open';
+      const emoji=pEmoji[t.priority]||'⚪';
+      const cbCell=isActionable
+        ?`<input type="checkbox" class="tkt-checkbox" data-id="${t.ticket_id}" onchange="onCheckbox('${t.ticket_id}',this.checked)" onclick="event.stopPropagation()">`
+        :`<input type="checkbox" class="tkt-checkbox" disabled style="opacity:.3">`;
+      html+=`<tr class="tkt-row${isActionable?'':' done'}" id="row-${t.ticket_id}" ${isActionable?`onclick="toggleRow('${t.ticket_id}')"`:''}>
+        <td class="td-chk">${cbCell}</td>
+        <td><div class="tkt-id">${emoji} ${t.ticket_id}</div></td>
+        <td><div class="tkt-name">${t['รายการ']||'—'}</div></td>
+        <td><div class="tkt-due${od?' overdue':''}">${fmtDate(t.due_date)}${od?' ⚠️':''}</div></td>
+        <td class="td-stat" id="stat-${t.ticket_id}">${statBadgeHtml(t.status)}</td>
+      </tr>`;
+    });
+  });
+
+  html+=`</tbody></table></div>`;
+  html+=`<div class="email-footer">
+    <span>ระบบ Operation Audit Automation &nbsp;·&nbsp; Laundry You</span>
+    <span>${displayDate}</span>
+  </div>`;
+  document.getElementById('content').innerHTML=html;
+}
+
+// ════════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════════
+async function init() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const code      = urlParams.get('code');
+  const error     = urlParams.get('error');
+
+  // ── Case 1: Microsoft redirected back with auth code ──────────
+  if (code) {
+    setLoading('กำลังยืนยันสิทธิ์...');
+    try {
+      const tokens = await exchangeCode(code);
+
+      // Get email from Graph API
+      const meResp = await fetch('https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName', {
+        headers: { Authorization: `Bearer ${tokens.access_token}` }
+      });
+      const me    = await meResp.json();
+      const email = me.mail || me.userPrincipalName || '';
+
+      storeTokens(tokens.access_token, email);
+
+      // Clean URL (ลบ ?code=... ออกจาก address bar)
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      await loadData(email);
+    } catch (e) {
+      setError(`Authentication error: ${e.message}<br><small>กรุณาปิดหน้าต่างนี้แล้วกด link ใหม่</small>`);
+    }
+    return;
+  }
+
+  // ── Case 2: Login failed ───────────────────────────────────────
+  if (error) {
+    const desc = urlParams.get('error_description') || error;
+    setError(`เข้าสู่ระบบไม่สำเร็จ: ${desc}`);
+    document.getElementById('login-overlay').classList.remove('hidden');
+    return;
+  }
+
+  // ── Case 3: มี session อยู่แล้ว ───────────────────────────────
+  const token = getStoredToken();
+  const email = getStoredEmail();
+  if (token && email) {
+    document.getElementById('topbar-user').textContent = email;
+    try {
+      await loadData(email);
+    } catch(e) {
+      // Token expired or invalid
+      clearSession();
+      showLoginPanel();
+    }
+    return;
+  }
+
+  // ── Case 4: ยังไม่ได้ login ───────────────────────────────────
+  showLoginPanel();
+}
+
+function showLoginPanel() {
+  setLoading('กรุณาเข้าสู่ระบบ');
+  document.getElementById('login-overlay').classList.remove('hidden');
+}
+
+init();
+</script>
+</body>
+</html>
