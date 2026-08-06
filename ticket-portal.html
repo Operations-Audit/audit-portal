@@ -147,6 +147,7 @@ body {
 .tkt-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: #2563EB; }
 .tkt-id   { font-size: 11px; font-weight: 700; color: #111; white-space: nowrap; }
 .tkt-name { font-size: 12px; color: #374151; }
+.tkt-sub  { font-size: 10px; color: #9CA3AF; margin-top: 2px; }
 .tkt-due  { font-size: 11px; color: #6B7280; white-space: nowrap; }
 .overdue  { color: #DC2626; font-weight: 700; }
 .stat-badge { display: inline-block; padding: 3px 9px; border-radius: 10px; font-size: 10px; font-weight: 700; white-space: nowrap; }
@@ -386,6 +387,16 @@ function colMap(cols) {
   return new Proxy(m, { get: (t,k) => k in t ? t[k] : -1 });
 }
 function sv(v)       { return v == null ? '' : String(v).trim(); }
+function parseExcelDate(val) {
+  if (!val) return '';
+  const n = Number(val);
+  if (!isNaN(n) && n > 1000 && !String(val).includes('-')) {
+    // Excel serial → JavaScript Date (UTC)
+    const d = new Date(Math.round((n - 25569) * 86400000));
+    return d.toISOString().substring(0, 10);
+  }
+  return String(val).substring(0, 10);
+}
 function nv(arr,idx) { if(idx<0||!arr) return null; const n=Number(arr[idx]); return isNaN(n)?null:Math.round(n); }
 function todayStr()  { return new Date().toISOString().substring(0,10); }
 
@@ -424,7 +435,8 @@ async function loadData(userEmail) {
     const lc = sv(v[di['lc_email']]).toLowerCase();
     const zm = di['zm_email']>=0 ? sv(v[di['zm_email']]).toLowerCase() : '';
     if (lc===email || zm===email) {
-      branchCode = sv(v[di['branch_id']]);
+      const rawDimB = sv(v[di['branch_id']]);
+      branchCode = rawDimB.includes(' | ') ? rawDimB.split(' | ')[0].trim() : rawDimB;
       branchName = sv(v[di['branch_name']]) || branchCode;
       break;
     }
@@ -453,7 +465,7 @@ async function loadData(userEmail) {
       'หมวดหมู่':   sv(v[ti['หมวดหมู่']]),
       'รายการ':     sv(v[ti['รายการ']]),
       priority:    sv(v[ti['priority']]) || 'Normal',
-      due_date:    sv(v[ti['due_date']]).substring(0,10),
+      due_date:    parseExcelDate(sv(v[ti['due_date']])),
       status,
       days_open:   ti['days_open']>=0 ? (Number(v[ti['days_open']])||0) : 0,
     });
@@ -551,8 +563,12 @@ function scoreBg(p)   { return p>=90?'#D1FAE5':p>=85?'#FEF3C7':'#FEE2E2'; }
 function scoreTx(p)   { return p>=90?'#065F46':p>=85?'#92400E':'#991B1B'; }
 function fmtDate(iso) {
   if (!iso) return '—';
-  const p=iso.split('-');
-  return p.length===3 ? `${parseInt(p[2])}/${parseInt(p[1])}` : iso;
+  const p = iso.split('-');
+  if (p.length !== 3) return iso;
+  const day = parseInt(p[2]);
+  const mon = parseInt(p[1]);
+  const year = parseInt(p[0]) + 543; // CE → พ.ศ.
+  return `${day}/${mon}/${year}`;
 }
 function isOverdue(d) { return d && d<todayStr(); }
 function statBadgeHtml(s) {
@@ -724,7 +740,7 @@ function renderAll(data) {
       html+=`<tr class="tkt-row${isActionable?'':' done'}" id="row-${t.ticket_id}" ${isActionable?`onclick="toggleRow('${t.ticket_id}')"`:''}>
         <td class="td-chk">${cbCell}</td>
         <td><div class="tkt-id">${emoji} ${t.ticket_id}</div></td>
-        <td><div class="tkt-name">${t['รายการ']||'—'}</div></td>
+        <td><div class="tkt-name">${t['รายการ']||'—'}</div>${t['หมวดหมู่']?`<div class="tkt-sub">${t['หมวดหมู่']}</div>`:''}</td>
         <td><div class="tkt-due${od?' overdue':''}">${fmtDate(t.due_date)}${od?' ⚠️':''}</div></td>
         <td class="td-stat" id="stat-${t.ticket_id}">${statBadgeHtml(t.status)}</td>
       </tr>`;
